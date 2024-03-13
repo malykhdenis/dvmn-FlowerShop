@@ -71,13 +71,13 @@ def pd_not_approved(call: CallbackQuery) -> None:
 def get_reason(message: Message) -> None:
     # TODO: get reasons from db?
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
-    reason_1 = InlineKeyboardButton('День рождения', callback_data='birthday')
-    reason_2 = InlineKeyboardButton('Свадьба', callback_data='wedding')
-    reason_3 = InlineKeyboardButton('В школу', callback_data='school')
-    reason_4 = InlineKeyboardButton('Без повода', callback_data='no_reason')
-    reason_5 = InlineKeyboardButton('Другой повод',
-                                    callback_data='another_reason')
-    inline_keyboard.add(reason_1, reason_2, reason_3, reason_4, reason_5)
+    inline_keyboard.add(
+        InlineKeyboardButton('День рождения', callback_data='birthday'),
+        InlineKeyboardButton('Свадьба', callback_data='wedding'),
+        InlineKeyboardButton('В школу', callback_data='school'),
+        InlineKeyboardButton('Без повода', callback_data='no_reason'),
+        InlineKeyboardButton('Другой повод', callback_data='another_reason'),
+    )
 
     bot.send_message(
         message.chat.id,
@@ -126,15 +126,15 @@ def proccess_reason(call: CallbackQuery) -> None:
 
 def get_desired_price(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
-    button_500 = InlineKeyboardButton("~500₽", callback_data="500")
-    button_1000 = InlineKeyboardButton("~1000₽", callback_data="1000")
-    button_2000 = InlineKeyboardButton("~2000₽", callback_data="2000")
-    button_more = InlineKeyboardButton("Больше", callback_data="3000")  # TODO: change callback_data according to filtration step
-    button_any = InlineKeyboardButton("Не важно", callback_data="0")
+    inline_keyboard.add(
+        InlineKeyboardButton("~500₽", callback_data="500"),
+        InlineKeyboardButton("~1000₽", callback_data="1000"),
+        InlineKeyboardButton("~2000₽", callback_data="2000"),
+        # TODO: change callback_data according to filtration step
+        InlineKeyboardButton("Больше", callback_data="3000"),
+        InlineKeyboardButton("Не важно", callback_data="0"),
+    )
 
-    inline_keyboard.add(button_500, button_1000,
-                        button_2000, button_more,
-                        button_any,)
     bot.send_message(message.chat.id, 'На какую сумму рассчитываете?',
                      reply_markup=inline_keyboard)
     bot.set_state(message.chat.id, BotStates.select_price)
@@ -250,7 +250,8 @@ def get_client_name(call: CallbackQuery) -> None:
             # clear reply_markup of message with first bouquet
             previous_bouquet: Message = data['first_bouquet_message']
             if previous_bouquet:
-                bot.edit_message_reply_markup(chat_id, previous_bouquet.message_id)
+                bot.edit_message_reply_markup(chat_id,
+                                              previous_bouquet.message_id)
                 # set messages to None to avoid ApiTelegramException
                 data['first_bouquet_message'] = None
                 data['another_bouquet_message'] = None
@@ -258,7 +259,8 @@ def get_client_name(call: CallbackQuery) -> None:
             # clear reply_markup of message with that suggests another bouquet
             another_bouquet: Message = data['another_bouquet_message']
             if another_bouquet:
-                bot.edit_message_reply_markup(chat_id, another_bouquet.message_id)
+                bot.edit_message_reply_markup(chat_id,
+                                              another_bouquet.message_id)
                 # set messages to None to avoid ApiTelegramException
                 data['first_bouquet_message'] = None
                 data['another_bouquet_message'] = None
