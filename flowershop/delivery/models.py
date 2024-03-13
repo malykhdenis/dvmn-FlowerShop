@@ -63,7 +63,7 @@ class Bouquet(models.Model):
 
 class BouquetReason(models.Model):
     '''Букет по поводу'''
-    bouquet = models.ForeignKey(Reason,
+    bouquet = models.ForeignKey(Bouquet,
                                 on_delete=models.CASCADE,
                                 blank=True,
                                 null=True)
