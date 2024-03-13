@@ -251,6 +251,7 @@ def get_client_name(call: CallbackQuery) -> None:
             previous_bouquet: Message = data['first_bouquet_message']
             if previous_bouquet:
                 bot.edit_message_reply_markup(chat_id, previous_bouquet.message_id)
+                # set messages to None to avoid ApiTelegramException
                 data['first_bouquet_message'] = None
                 data['another_bouquet_message'] = None
         else:
@@ -258,6 +259,7 @@ def get_client_name(call: CallbackQuery) -> None:
             another_bouquet: Message = data['another_bouquet_message']
             if another_bouquet:
                 bot.edit_message_reply_markup(chat_id, another_bouquet.message_id)
+                # set messages to None to avoid ApiTelegramException
                 data['first_bouquet_message'] = None
                 data['another_bouquet_message'] = None
 
