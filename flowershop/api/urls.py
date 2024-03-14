@@ -11,5 +11,5 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path("", include(router.urls)),
     path("reasons", ReasonList.as_view()),
-    path("bouquets", BouquetList.as_view())
+    path("bouquets/", BouquetList.as_view())
 ]

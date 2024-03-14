@@ -1,4 +1,5 @@
-from rest_framework import generics, mixins, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics, mixins, viewsets, filters
 
 from delivery.models import Bouquet, Client, Courier, Master, Order, Reason
 from .serializers import (BouquetSerializer, ClientSerializer,
@@ -30,8 +31,16 @@ class ReasonList(generics.ListAPIView):
 
 class BouquetList(generics.ListAPIView):
     """ViewSet for Reason model."""
-    queryset = Bouquet.objects.all()
     serializer_class = BouquetSerializer
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    search_fields = ('reasons__name',)
+
+    def get_queryset(self):
+        queryset = Bouquet.objects.all()
+        price__lte = self.request.query_params.get("price__lte")
+        if price__lte is not None:
+            queryset = queryset.filter(price__lte=price__lte)
+        return queryset
 
 
 class MasterViewSet(generics.RetrieveAPIView):
