@@ -23,7 +23,7 @@ class ClientViewSet(CreateRetrieveUpdateViewSet):
     serializer_class = ClientSerializer
 
 
-class ReasonList(generics.ListAPIView):
+class ReasonList(generics.ListCreateAPIView):
     """ViewSet for Reason model."""
     queryset = Reason.objects.all()
     serializer_class = ReasonSerializer
@@ -43,13 +43,19 @@ class BouquetList(generics.ListAPIView):
         return queryset
 
 
-class MasterViewSet(generics.RetrieveAPIView):
+class BouquetDetail(generics.RetrieveAPIView):
+    """ViewSet for Reason model."""
+    queryset = Bouquet.objects.all()
+    serializer_class = BouquetSerializer
+
+
+class MasterDetail(generics.RetrieveAPIView):
     """ViewSet for Master model."""
     queryset = Master.objects.all()
     serializer_class = MasterSerializer
 
 
-class CourierViewSet(generics.RetrieveAPIView):
+class CourierDetail(generics.RetrieveUpdateAPIView):
     """ViewSet for Master model."""
     queryset = Courier.objects.all()
     serializer_class = CourierSerializer
