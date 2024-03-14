@@ -1,7 +1,5 @@
 from datetime import datetime, timedelta
 
-from django.core.management.base import BaseCommand
-from django.conf import settings
 import telebot
 from telebot import custom_filters
 from telebot.handler_backends import State, StatesGroup
@@ -9,6 +7,8 @@ from telebot.storage import StateMemoryStorage
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
+
+from db_utils import get_from_db
 
 env = Env()
 env.read_env()
@@ -41,7 +41,7 @@ class BotStates(StatesGroup):
 def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
-    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
@@ -69,12 +69,17 @@ def pd_not_approved(call: CallbackQuery) -> None:
 
 
 def get_reason(message: Message) -> None:
-    # TODO: get reasons from db?
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
+
+    reasons = get_from_db("http://127.0.0.1:8000/api/v1/reasons")
+    reason_buttons = [
+        InlineKeyboardButton(
+            reason['name'], callback_data=reason['id']
+        ) for reason in reasons
+    ]
+
     inline_keyboard.add(
-        InlineKeyboardButton('День рождения', callback_data='birthday'),
-        InlineKeyboardButton('Свадьба', callback_data='wedding'),
-        InlineKeyboardButton('В школу', callback_data='school'),
+        *reason_buttons,
         InlineKeyboardButton('Без повода', callback_data='no_reason'),
         InlineKeyboardButton('Другой повод', callback_data='another_reason'),
     )
@@ -127,11 +132,10 @@ def proccess_reason(call: CallbackQuery) -> None:
 def get_desired_price(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton("~500₽", callback_data="500"),
-        InlineKeyboardButton("~1000₽", callback_data="1000"),
-        InlineKeyboardButton("~2000₽", callback_data="2000"),
-        # TODO: change callback_data according to filtration step
-        InlineKeyboardButton("Больше", callback_data="3000"),
+        InlineKeyboardButton("~500₽", callback_data="750"),
+        InlineKeyboardButton("~1000₽", callback_data="1250"),
+        InlineKeyboardButton("~2000₽", callback_data="2250"),
+        InlineKeyboardButton("Больше", callback_data="1000000"),
         InlineKeyboardButton("Не важно", callback_data="0"),
     )
 
@@ -142,99 +146,73 @@ def get_desired_price(message: Message) -> None:
 
 @bot.callback_query_handler(state=BotStates.select_price,
                             func=lambda call: True)
-def show_bouquet(call: CallbackQuery) -> None:
+def process_desired_price(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
-    bot.edit_message_reply_markup(chat_id, message.message_id)
-
-    inline_keyboard_order = InlineKeyboardMarkup(row_width=1)
-    inline_keyboard_order.add(
-        InlineKeyboardButton('Заказать букет', callback_data="order_bouquet")
-    )
-
-    # TODO: get filtered query set from db
-    # TODO: send image and description to user
-
-    first_bouquet = bot.send_message(
-        message.chat.id, 'Фото букета.',
-        reply_markup=inline_keyboard_order
-    )
-
-    inline_keyboard_view_more = InlineKeyboardMarkup(row_width=1)
-    inline_keyboard_view_more.add(
-        InlineKeyboardButton(
-            'Заказать консультацию',
-            callback_data="order_consultation"
-        ),
-        InlineKeyboardButton(
-            'Посмотреть всю коллекцию',
-            callback_data="show_another_bouquet"
-        )
-    )
-    another_bouquet = bot.send_message(
-        message.chat.id,
-        'Хотите что-то ещё более уникальное? Подберите другой букет из нашей '
-        'коллекции или закажите консультацию флориста.',
-        reply_markup=inline_keyboard_view_more
-    )
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['desired_price'] = call.data
-        data['first_bouquet_message'] = first_bouquet
-        data['another_bouquet_message'] = another_bouquet
 
     bot.set_state(message.chat.id, BotStates.show_bouquet)
+
+    show_bouquet(call)
 
 
 @bot.callback_query_handler(
     state=BotStates.show_bouquet,
     func=lambda call: call.data == "show_another_bouquet"
 )
-@bot.callback_query_handler(
-    state=BotStates.show_another_bouquet,
-    func=lambda call: call.data == "show_another_bouquet"
-)
-def show_another_bouquet(call: CallbackQuery) -> None:
+def show_bouquet(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
     bot.edit_message_reply_markup(chat_id, message.message_id)
-    # clear reply_markup of message with first bouquet
-    with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        previous_bouquet: Message = data['first_bouquet_message']
-        if previous_bouquet:
-            bot.edit_message_reply_markup(chat_id, previous_bouquet.message_id)
-            # set messages to None to avoid ApiTelegramException
-            data['first_bouquet_message'] = None
-            data['another_bouquet_message'] = None
 
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
-        InlineKeyboardButton(
-            'Заказать букет',
-            callback_data="order_bouquet"
-        ),
+        InlineKeyboardButton('Заказать букет', callback_data="order_bouquet"),
         InlineKeyboardButton(
             'Посмотреть следующий букет',
             callback_data="show_another_bouquet"
-        )
+        ),
+        InlineKeyboardButton(
+            'Заказать консультацию',
+            callback_data="order_consultation"
+        ),
     )
-    # TODO: change logic to something useful
+
+    bouquets = [1,2,3,4,5]
+    # TODO: get filtered query set from db
+    # TODO: send image and description to user
+
+    with bot.retrieve_data(call.from_user.id, chat_id) as data:
+        if 'found_bouquets' not in data:
+            data['found_bouquets'] = bouquets
+
+        if 'bouquet_index' not in data:
+            data['bouquet_index'] = 0
+        else:
+            data['bouquet_index'] = data['bouquet_index'] + 1
+
+        try:
+            current_bouquet = data['found_bouquets'][data['bouquet_index']]
+        except IndexError:
+            # start showing bouquets from the beginning
+            data['bouquet_index'] = 0
+            current_bouquet = data['found_bouquets'][data['bouquet_index']]
 
     bot.send_message(
-        message.chat.id,
-        'Фото другого букета.',
+        chat_id,
+        f'Фото букета {current_bouquet}.\n\n Или хотите что-то ещё '
+        'более уникальное? Подберите другой букет из нашей коллекции или '
+        'закажите консультацию флориста.',
         reply_markup=inline_keyboard
     )
-    bot.set_state(message.chat.id, BotStates.show_another_bouquet)
 
 
 @bot.callback_query_handler(
     state=BotStates.show_bouquet,
     func=lambda call: call.data == "order_bouquet"
 )
-@bot.callback_query_handler(
-    state=BotStates.show_another_bouquet,
-    func=lambda call: call.data == "order_bouquet")
 @bot.callback_query_handler(
     state=BotStates.show_bouquet,
     func=lambda call: call.data == "order_consultation"
@@ -247,23 +225,6 @@ def get_client_name(call: CallbackQuery) -> None:
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         if call.data == "order_consultation":
             data["order_consultation"] = True
-            # clear reply_markup of message with first bouquet
-            previous_bouquet: Message = data['first_bouquet_message']
-            if previous_bouquet:
-                bot.edit_message_reply_markup(chat_id,
-                                              previous_bouquet.message_id)
-                # set messages to None to avoid ApiTelegramException
-                data['first_bouquet_message'] = None
-                data['another_bouquet_message'] = None
-        else:
-            # clear reply_markup of message with that suggests another bouquet
-            another_bouquet: Message = data['another_bouquet_message']
-            if another_bouquet:
-                bot.edit_message_reply_markup(chat_id,
-                                              another_bouquet.message_id)
-                # set messages to None to avoid ApiTelegramException
-                data['first_bouquet_message'] = None
-                data['another_bouquet_message'] = None
 
     bot.send_message(chat_id,
                      'Отлично. Скажите, как мы можем к Вам обращаться?')
@@ -420,8 +381,12 @@ def start(message: Message) -> None:
     get_reason(message)
 
 
-if __name__ == '__main__':
+def main() -> None:
     bot.enable_save_next_step_handlers(delay=2)
     bot.load_next_step_handlers()
     bot.add_custom_filter(custom_filters.StateFilter(bot))
     bot.infinity_polling()
+
+
+if __name__ == '__main__':
+    main()
