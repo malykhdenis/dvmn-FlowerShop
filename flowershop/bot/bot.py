@@ -8,7 +8,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
 
-from db_utils import get_from_db
+from db_utils import get_reasons, get_requested_bouquets
 
 env = Env()
 env.read_env()
@@ -21,6 +21,7 @@ bot = telebot.TeleBot(
 
 
 class BotStates(StatesGroup):
+    start = State()
     approve_pd = State()
     select_reason = State()
     specify_reason = State()
@@ -71,10 +72,10 @@ def pd_not_approved(call: CallbackQuery) -> None:
 def get_reason(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
 
-    reasons = get_from_db("http://127.0.0.1:8000/api/v1/reasons")
+    reasons = get_reasons()
     reason_buttons = [
         InlineKeyboardButton(
-            reason['name'], callback_data=reason['id']
+            reason['name'], callback_data=reason['name']
         ) for reason in reasons
     ]
 
@@ -112,6 +113,11 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data["username"] = message.from_user.username
         data["reason"] = message.text
+        # clear info about previously filtered bouquets
+        if 'found_bouquets' in data:
+            del data['found_bouquets']
+        if 'bouquet_index' in data:
+            del data['bouquet_index']
 
     get_desired_price(message)
 
@@ -169,7 +175,48 @@ def show_bouquet(call: CallbackQuery) -> None:
 
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
-        InlineKeyboardButton('Заказать букет', callback_data="order_bouquet"),
+        InlineKeyboardButton(
+            'Заказать консультацию',
+            callback_data="order_consultation"
+        ),
+    )
+
+    with bot.retrieve_data(call.from_user.id, chat_id) as data:
+        if 'found_bouquets' not in data:
+            bouquets = get_requested_bouquets(data['reason'], data['desired_price'])
+            print(bouquets)
+            data['found_bouquets'] = bouquets
+
+        if 'bouquet_index' not in data:
+            data['bouquet_index'] = 0
+        else:
+            data['bouquet_index'] = data['bouquet_index'] + 1
+
+        try:
+            if data['found_bouquets']:
+                current_bouquet = data['found_bouquets'][data['bouquet_index']]
+            else:
+                current_bouquet = None
+        except IndexError:
+            # start showing bouquets from the beginning
+            data['bouquet_index'] = 0
+            current_bouquet = data['found_bouquets'][data['bouquet_index']]
+
+    if not current_bouquet:
+        bot.send_message(
+            chat_id,
+            'К сожалению, по вашему запросу ничего не найдено.\n\n'
+            'Попробуйте уточнить свой запрос или закажите конcультацию '
+            'флориста.\n\n'
+            'Для нового заказа используйте команду /start.',
+            reply_markup=inline_keyboard
+        )
+        return
+
+    flowers = [flower['name'] for flower in current_bouquet['flowers']]
+    inline_keyboard = InlineKeyboardMarkup(row_width=1)
+    inline_keyboard.add(
+        InlineKeyboardButton('Заказать этот букет', callback_data="order_bouquet"),
         InlineKeyboardButton(
             'Посмотреть следующий букет',
             callback_data="show_another_bouquet"
@@ -180,33 +227,28 @@ def show_bouquet(call: CallbackQuery) -> None:
         ),
     )
 
-    bouquets = [1,2,3,4,5]
-    # TODO: get filtered query set from db
-    # TODO: send image and description to user
-
-    with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        if 'found_bouquets' not in data:
-            data['found_bouquets'] = bouquets
-
-        if 'bouquet_index' not in data:
-            data['bouquet_index'] = 0
-        else:
-            data['bouquet_index'] = data['bouquet_index'] + 1
-
-        try:
-            current_bouquet = data['found_bouquets'][data['bouquet_index']]
-        except IndexError:
-            # start showing bouquets from the beginning
-            data['bouquet_index'] = 0
-            current_bouquet = data['found_bouquets'][data['bouquet_index']]
-
     bot.send_message(
         chat_id,
-        f'Фото букета {current_bouquet}.\n\n Или хотите что-то ещё '
-        'более уникальное? Подберите другой букет из нашей коллекции или '
-        'закажите консультацию флориста.',
+        f'{current_bouquet["title"]}\n\n'
+        'TODO: Описание букета.\n\n'
+        f'Состав: {", ".join(flowers)}\n\n'
+        f'Цена: {current_bouquet["price"]}\n\n'
+        'Или хотите что-то ещё более уникальное? Подберите другой букет '
+        'из нашей коллекции или закажите консультацию флориста.',
         reply_markup=inline_keyboard
     )
+
+    # bot.send_photo(
+    #     chat_id,
+    #     "TODO_image_url",
+    #     f'{current_bouquet["title"]}\n\n'
+    #     'TODO: Описание букета.\n\n'
+    #     f'Состав: {", ".join(flowers)}\n\n'
+    #     f'Цена: {current_bouquet["price"]}\n\n'
+    #     'Или хотите что-то ещё более уникальное? Подберите другой букет '
+    #     'из нашей коллекции или закажите консультацию флориста.',
+    #     reply_markup=inline_keyboard
+    # )
 
 
 @bot.callback_query_handler(
@@ -357,6 +399,7 @@ def consultation_ordered(message: Message) -> None:
 @bot.message_handler(commands=['start'])
 def start(message: Message) -> None:
     client = False  # TODO: get client from db
+
     bot.send_message(
         message.chat.id,
         'Закажите доставку праздничного букета, собранного специально для '
