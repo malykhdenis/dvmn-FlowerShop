@@ -25,7 +25,7 @@ class Client(models.Model):
         ordering = ('username',)
 
     def __str__(self):
-        return self.username
+        return str(self.username)
 
 
 class Reason(models.Model):
@@ -41,7 +41,7 @@ class Reason(models.Model):
         ordering = ('name',)
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
 
 class Flower(models.Model):
@@ -57,7 +57,7 @@ class Flower(models.Model):
         ordering = ('name',)
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
 
 class Bouquet(models.Model):
@@ -90,7 +90,7 @@ class Bouquet(models.Model):
         ordering = ('title',)
 
     def __str__(self):
-        return self.title
+        return str(self.title)
 
 
 class BouquetReason(models.Model):
@@ -155,7 +155,7 @@ class Master(models.Model):
         ordering = ('name',)
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
 
 class Courier(models.Model):
@@ -177,7 +177,7 @@ class Courier(models.Model):
         ordering = ('name',)
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
 
 class Order(models.Model):
@@ -214,4 +214,4 @@ class Order(models.Model):
         ordering = ('client_id',)
 
     def __str__(self):
-        return self.client_id
+        return str(self.client_id)
