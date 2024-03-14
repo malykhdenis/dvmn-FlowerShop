@@ -66,6 +66,9 @@ class Bouquet(models.Model):
                              blank=True,
                              null=True,
                              verbose_name='Название букета')
+    description = models.TextField(blank=True,
+                                   null=True,
+                                   verbose_name='Описание букета')
     reasons = models.ManyToManyField(Reason,
                                      through='BouquetReason',
                                      blank=True,
@@ -77,9 +80,9 @@ class Bouquet(models.Model):
     price = models.IntegerField(blank=True,
                                 null=True,
                                 verbose_name='Цена букета')
-    photo = models.ImageField(blank=True,
-                              null=True,
-                              verbose_name='Фото')
+    photo = models.URLField(blank=True,
+                            null=True,
+                            verbose_name='Фото')
 
     class Meta:
         verbose_name = 'Букет'
@@ -106,6 +109,10 @@ class BouquetReason(models.Model):
         verbose_name_plural = 'Букет по поводу'
         ordering = ('bouquet', 'reason')
 
+    def __str__(self):
+        result = self.bouquet, self.reason
+        return str(result)
+
 
 class BouquetFlower(models.Model):
     '''Букет с цветами'''
@@ -120,12 +127,16 @@ class BouquetFlower(models.Model):
                                null=True)
     amount = models.IntegerField(blank=True,
                                  null=True,
-                                 verbose_name='Цена букета')
+                                 verbose_name='Количество цветов')
 
     class Meta:
         verbose_name = 'Букет с цветами'
         verbose_name_plural = 'Букет с цветами'
         ordering = ('bouquet', 'flower')
+
+    def __str__(self):
+        result = self.bouquet, self.flower
+        return str(result)
 
 
 class Master(models.Model):
