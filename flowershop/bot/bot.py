@@ -8,7 +8,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
 
-from db_utils import get_reasons, get_requested_bouquets
+from db_utils import get_reasons_from_db, get_requested_bouquets
 
 env = Env()
 env.read_env()
@@ -72,7 +72,7 @@ def pd_not_approved(call: CallbackQuery) -> None:
 def get_reason(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
 
-    reasons = get_reasons()
+    reasons = get_reasons_from_db()
     reason_buttons = [
         InlineKeyboardButton(
             reason['name'], callback_data=reason['name']
@@ -113,7 +113,7 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data["username"] = message.from_user.username
         data["reason"] = message.text
-        # clear info about previously filtered bouquets
+        # clear info about previously filtered bouquets if any
         if 'found_bouquets' in data:
             del data['found_bouquets']
         if 'bouquet_index' in data:
@@ -141,7 +141,7 @@ def get_desired_price(message: Message) -> None:
         InlineKeyboardButton("~500₽", callback_data="750"),
         InlineKeyboardButton("~1000₽", callback_data="1250"),
         InlineKeyboardButton("~2000₽", callback_data="2250"),
-        InlineKeyboardButton("Больше", callback_data="1000000"),
+        InlineKeyboardButton("Больше", callback_data="overprice"),
         InlineKeyboardButton("Не важно", callback_data="0"),
     )
 
@@ -173,8 +173,8 @@ def show_bouquet(call: CallbackQuery) -> None:
     chat_id = message.chat.id
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
-    inline_keyboard = InlineKeyboardMarkup(row_width=1)
-    inline_keyboard.add(
+    inline_keyboard_no_result = InlineKeyboardMarkup(row_width=1)
+    inline_keyboard_no_result.add(
         InlineKeyboardButton(
             'Заказать консультацию',
             callback_data="order_consultation"
@@ -209,11 +209,12 @@ def show_bouquet(call: CallbackQuery) -> None:
             'Попробуйте уточнить свой запрос или закажите конcультацию '
             'флориста.\n\n'
             'Для нового заказа используйте команду /start.',
-            reply_markup=inline_keyboard
+            reply_markup=inline_keyboard_no_result
         )
         return
 
     flowers = [flower['name'] for flower in current_bouquet['flowers']]
+
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
         InlineKeyboardButton('Заказать этот букет', callback_data="order_bouquet"),
@@ -398,28 +399,25 @@ def consultation_ordered(message: Message) -> None:
 
 @bot.message_handler(commands=['start'])
 def start(message: Message) -> None:
-    client = False  # TODO: get client from db
-
     bot.send_message(
         message.chat.id,
         'Закажите доставку праздничного букета, собранного специально для '
         'ваших любимых, родных и коллег.\n'
         'Наш букет со смыслом станет главным подарком на вашем празднике!'
     )
-    if not client:
-        inline_keyboard = InlineKeyboardMarkup(row_width=2)
-        button_yes = InlineKeyboardButton('Да', callback_data='yes')
-        button_no = InlineKeyboardButton('Нет', callback_data='no')
-        inline_keyboard.add(button_yes, button_no)
 
-        bot.send_message(
-            message.chat.id,
-            'Для продолжения работы с ботом необходимо ваше согласие '
-            'на обработку персональных данных.',
-            reply_markup=inline_keyboard)
-        bot.set_state(message.from_user.id,
-                      BotStates.approve_pd, message.chat.id)
-        return
+    inline_keyboard = InlineKeyboardMarkup(row_width=2)
+    button_yes = InlineKeyboardButton('Да', callback_data='yes')
+    button_no = InlineKeyboardButton('Нет', callback_data='no')
+    inline_keyboard.add(button_yes, button_no)
+
+    bot.send_message(
+        message.chat.id,
+        'Для продолжения работы с ботом необходимо ваше согласие '
+        'на обработку персональных данных.',
+        reply_markup=inline_keyboard)
+    bot.set_state(message.from_user.id,
+                  BotStates.approve_pd, message.chat.id)
 
     get_reason(message)
 
