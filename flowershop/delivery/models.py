@@ -80,9 +80,9 @@ class Bouquet(models.Model):
     price = models.IntegerField(blank=True,
                                 null=True,
                                 verbose_name='Цена букета')
-    photo = models.ImageField(blank=True,
-                              null=True,
-                              verbose_name='Фото')
+    photo = models.URLField(blank=True,
+                            null=True,
+                            verbose_name='Фото')
 
     class Meta:
         verbose_name = 'Букет'
