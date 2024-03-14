@@ -38,8 +38,11 @@ class BouquetList(generics.ListAPIView):
     def get_queryset(self):
         queryset = Bouquet.objects.all()
         price__lte = self.request.query_params.get("price__lte")
+        overprice = self.request.query_params.get("overprice")
         if price__lte is not None:
             queryset = queryset.filter(price__lte=price__lte)
+        if overprice == "True":
+            queryset = queryset.filter(price__gt=2000)
         return queryset
 
 
