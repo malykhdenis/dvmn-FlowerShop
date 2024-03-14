@@ -66,7 +66,7 @@ class Bouquet(models.Model):
                              blank=True,
                              null=True,
                              verbose_name='Название букета')
-    description = models.TimeField(blank=True,
+    description = models.TextField(blank=True,
                                    null=True,
                                    verbose_name='Описание букета')
     reasons = models.ManyToManyField(Reason,
