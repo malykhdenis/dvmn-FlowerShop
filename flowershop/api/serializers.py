@@ -8,21 +8,21 @@ from delivery.models import (Bouquet, Client, Courier, Flower, Master, Order,
 class ClientSerializer(serializers.ModelSerializer):
     """Serializer for Client model."""
     class Meta:
-        fields = ["id", "username", "adress", "phone_number",]
+        fields = "__all__"
         model = Client
 
 
 class ReasonSerializer(serializers.ModelSerializer):
     """Serializer for Reason model."""
     class Meta:
-        fields = ["id", "name"]
+        fields = "__all__"
         model = Reason
 
 
 class FlowerSerializer(serializers.ModelSerializer):
     """Serializer for Flower model."""
     class Meta:
-        fields = ["id", "name"]
+        fields = "__all__"
         model = Flower
 
 
@@ -33,34 +33,27 @@ class BouquetSerializer(serializers.ModelSerializer):
     photo = Base64ImageField()
 
     class Meta:
-        fields = ["id", "title", "reasons", "flowers", "price", "photo",]
+        fields = "__all__"
         model = Bouquet
 
 
 class MasterSerializer(serializers.ModelSerializer):
     """Serializer for Master model."""
     class Meta:
-        fields = ["id", "name", "telegram_id",]
+        fields = "__all__"
         model = Master
 
 
 class CourierSerializer(serializers.ModelSerializer):
     """Serializer for Courier model."""
     class Meta:
-        fields = ["id", "name", "telegram_id", "orders_count"]
+        fields = "__all__"
         model = Courier
+        read_only_fields = ("id", "name", "telegram_id",)
 
 
 class OrderSerializer(serializers.ModelSerializer):
     """Serializer for Order model."""
     class Meta:
-        fields = [
-            "id",
-            "client_id",
-            "bouquet_id",
-            "master_id",
-            "courier_id",
-            "total_price",
-            "answer_time",
-            ]
+        fields = "__all__"
         model = Order
