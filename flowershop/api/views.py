@@ -1,10 +1,11 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, mixins, viewsets, filters
 
-from delivery.models import Bouquet, Client, Courier, Master, Order, Reason
+from delivery.models import (Bouquet, Client, Consultation, Courier, Master,
+                             Order, Reason)
 from .serializers import (BouquetSerializer, ClientSerializer,
-                          CourierSerializer, MasterSerializer, OrderSerializer,
-                          ReasonSerializer)
+                          ConsultationSerializer, CourierSerializer,
+                          MasterSerializer, OrderSerializer, ReasonSerializer)
 
 
 class CreateRetrieveUpdateViewSet(
@@ -71,3 +72,9 @@ class OrderViewSet(CreateRetrieveUpdateViewSet):
     """ViewSet for Client model."""
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
+
+
+class ConsultationViewSet(CreateRetrieveUpdateViewSet):
+    """ViewSet for Consultation model."""
+    queryset = Consultation.objects.all()
+    serializer_class = ConsultationSerializer

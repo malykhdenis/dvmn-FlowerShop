@@ -1,8 +1,8 @@
 from drf_extra_fields.fields import Base64ImageField
 from rest_framework import serializers
 
-from delivery.models import (Bouquet, Client, Courier, Flower, Master, Order,
-                             Reason)
+from delivery.models import (Bouquet, Client, Consultation, Courier, Flower,
+                             Master, Order, Reason)
 
 
 class ClientSerializer(serializers.ModelSerializer):
@@ -56,3 +56,10 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         fields = "__all__"
         model = Order
+
+
+class ConsultationSerializer(serializers.ModelSerializer):
+    """Serializer for Consultation model."""
+    class Meta:
+        fields = "__all__"
+        model = Consultation
