@@ -11,9 +11,11 @@ from environs import Env
 from requests.exceptions import HTTPError
 from icecream import ic
 
-from db_utils import get_reasons_from_db, get_requested_bouquets, \
+from bot_utils.db_utils import get_reasons_from_db, get_requested_bouquets, \
     get_master_from_db, get_courier_from_db, create_client_in_db, \
     get_client_from_db, create_order_in_db
+from bot_utils import bot_messages as msg
+from bot_utils import bot_buttons as btn
 
 env = Env()
 env.read_env()
@@ -49,7 +51,7 @@ def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
 
-    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
@@ -64,16 +66,12 @@ def pd_not_approved(call: CallbackQuery) -> None:
 
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
-        InlineKeyboardButton(
-            'Я согласен на обработку персональных данных',
-            callback_data='yes'
-        )
+        InlineKeyboardButton(btn.PD_YES, callback_data='yes')
     )
 
     bot.send_message(
         chat_id,
-        'К сожалению, без согласия на обработку персональных данных '
-        'вы не сможете заказать букет.',
+        msg.PD_RESTRICT,
         reply_markup=inline_keyboard
     )
 
@@ -90,14 +88,14 @@ def get_reason(message: Message) -> None:
 
     inline_keyboard.add(
         *reason_buttons,
-        InlineKeyboardButton('Без повода', callback_data='no_reason'),
-        InlineKeyboardButton('Другой повод', callback_data='another_reason'),
+        InlineKeyboardButton(btn.NO_REASON, callback_data='no_reason'),
+        InlineKeyboardButton(btn.ANOTHER_REASON,
+                             callback_data='another_reason'),
     )
 
     bot.send_message(
         message.chat.id,
-        'К какому событию готовимся? Выберите один из вариантов '
-        'или укажите свой.',
+        msg.GET_REASON,
         reply_markup=inline_keyboard
     )
     bot.set_state(message.chat.id, BotStates.select_reason)
@@ -112,7 +110,7 @@ def get_custom_reason(call: CallbackQuery) -> None:
 
     bot.send_message(
         message.chat.id,
-        'Расскажите нам, к какому событию вы бы хотели приобрести букет?',
+        msg.GET_CUSTOM_REASON,
     )
     bot.set_state(message.chat.id, BotStates.specify_reason)
 
@@ -142,14 +140,14 @@ def proccess_reason(call: CallbackQuery) -> None:
 def get_desired_price(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton('~500₽', callback_data='750'),
-        InlineKeyboardButton('~1000₽', callback_data='1250'),
-        InlineKeyboardButton('~2000₽', callback_data='2250'),
+        InlineKeyboardButton('~500₽', callback_data='500'),
+        InlineKeyboardButton('~1000₽', callback_data='1000'),
+        InlineKeyboardButton('~2000₽', callback_data='2000'),
         InlineKeyboardButton('Больше', callback_data='overprice'),
         InlineKeyboardButton('Не важно', callback_data='0'),
     )
 
-    bot.send_message(message.chat.id, 'На какую сумму рассчитываете?',
+    bot.send_message(message.chat.id, msg.GET_DESIRED_PRICE,
                      reply_markup=inline_keyboard)
     bot.set_state(message.chat.id, BotStates.select_price)
 
@@ -191,7 +189,7 @@ def show_bouquet(call: CallbackQuery) -> None:
     inline_keyboard_no_result = InlineKeyboardMarkup(row_width=1)
     inline_keyboard_no_result.add(
         InlineKeyboardButton(
-            'Заказать консультацию',
+            btn.ORDER_CONSULTATION,
             callback_data='order_consultation'
         ),
     )
@@ -232,53 +230,42 @@ def show_bouquet(call: CallbackQuery) -> None:
     if not current_bouquet:
         bot.send_message(
             chat_id,
-            'К сожалению, по вашему запросу ничего не найдено.\n\n'
-            'Попробуйте уточнить свой запрос или закажите конcультацию '
-            'флориста.\n\n'
-            'Для нового заказа используйте команду /start.',
+            msg.BOUQUETS_NOT_FOUND,
             reply_markup=inline_keyboard_no_result
         )
         return
 
-    flowers = [flower['name'] for flower in current_bouquet['flowers']]
-
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
-        InlineKeyboardButton('Заказать этот букет',
+        InlineKeyboardButton(btn.ORDER_BOUQUET,
                              callback_data='order_bouquet'),
         InlineKeyboardButton(
-            'Посмотреть следующий букет',
+            btn.SHOW_ANOTHER_BOUQUET,
             callback_data='show_another_bouquet'
         ),
         InlineKeyboardButton(
-            'Заказать консультацию',
+            btn.ORDER_CONSULTATION,
             callback_data='order_consultation'
         ),
     )
 
-    message_text = (
-        f'{current_bouquet["title"]}\n\n'
-        f'{current_bouquet["description"]}\n\n'
-        f'Состав: {", ".join(flowers)}\n\n'
-        f'Цена: {current_bouquet["price"]}₽\n\n'
-        'Или хотите что-то ещё более уникальное? Подберите другой букет '
-        'из нашей коллекции или закажите консультацию флориста.'
-    )
+    message_text = msg.generate_bouquet_info(current_bouquet)
     image_url = current_bouquet['photo']
-
     if image_url:
         bot.send_photo(
             chat_id,
             image_url,
             message_text,
-            reply_markup=inline_keyboard
+            reply_markup=inline_keyboard,
+            parse_mode='markdown'
         )
         return
 
     bot.send_message(
         chat_id,
         message_text,
-        reply_markup=inline_keyboard
+        reply_markup=inline_keyboard,
+        parse_mode='markdown'
     )
 
 
@@ -299,8 +286,7 @@ def get_client_name(call: CallbackQuery) -> None:
         if call.data == 'order_consultation':
             data['order_consultation'] = True
 
-    bot.send_message(chat_id,
-                     'Отлично. Скажите, как мы можем к Вам обращаться?')
+    bot.send_message(chat_id, msg.GET_CLIENT_NAME)
     bot.set_state(chat_id, BotStates.get_client_name)
 
 
@@ -313,7 +299,7 @@ def get_client_phone_number(message: Message) -> None:
 
     bot.send_message(
         message.chat.id,
-        f'Приятно познакомиться, {name}. Теперь введите ваш номер телефона.'
+        ' '.join([msg.generate_user_greeting(name), msg.GET_CLIENT_PHONE])
     )
     bot.set_state(message.from_user.id, BotStates.get_client_phone_number)
 
@@ -334,7 +320,7 @@ def proccess_client_phone_number(message: Message) -> None:
 def get_client_address(message: Message) -> None:
     bot.send_message(
         message.chat.id,
-        'Замечательно! Теперь введите адрес доставки.'
+        msg.GET_CLIENT_ADDRESS
     )
     bot.set_state(message.from_user.id, BotStates.get_client_address)
 
@@ -362,7 +348,7 @@ def get_delivery_date(message: Message) -> None:
 
     bot.send_message(
         message.chat.id,
-        'Уже почти всё. На какой день планируете доставку?',
+        msg.GET_DELIVERY_DATE,
         reply_markup=inline_keyboard
     )
     bot.set_state(message.from_user.id, BotStates.get_delivery_date)
@@ -390,7 +376,7 @@ def get_delivery_time(message: Message) -> None:
     )
     bot.send_message(
         message.chat.id,
-        'И последнее: в какое время вы можете принять курьера?',
+        msg.GET_DELIVERY_TIME,
         reply_markup=inline_keyboard
     )
     bot.set_state(message.chat.id, BotStates.get_delivery_time)
@@ -446,33 +432,36 @@ def order_accepted(call: CallbackQuery) -> None:
     )
 
     courier_tg_id = courier['telegram_id']
-    delivery_datetime_readable = delivery_datetime.strftime('%d/%m/%Y %H:%M')
+    order_info = msg.generate_order_info(
+        client["name"],
+        client["phone_number"],
+        bouquet["title"],
+        price_with_delivery,
+        client["address"],
+        delivery_datetime
+    )
     bot.send_message(
         courier_tg_id,
-        'Поступил новый заказ.\n\n'
-        f'Имя: {client["name"]}\n'
-        f'Номер телефона: {client["phone_number"]}\n'
-        f'Букет: {bouquet["title"]}\n'
-        f'Цена с доставкой: {price_with_delivery}\n'
-        f'Адрес доставки: {client["address"]}\n'
-        f'Дата и время доставки: {delivery_datetime_readable}\n\n'
+        ''.join([
+            msg.NEW_ORDER_ACCEPTED,
+            order_info
+        ])
     )
 
     bot.send_message(
         chat_id,
-        'Ваш заказ принят.\n\n'
-        f'Букет: {bouquet["title"]}\n'
-        f'Цена с доставкой: {price_with_delivery}\n'
-        f'Адрес доставки: {client["address"]}\n'
-        f'Дата и время доставки: {delivery_datetime_readable}\n\n'
-        'Наш менеджер скоро свяжется с вами '
-        'для уточнения деталей.'
+        ''.join([
+            msg.YOUR_ORDER_ACCEPTED,
+            order_info,
+            msg.MANAGER_CONTACT
+        ])
     )
     bot.set_state(message.from_user.id, BotStates.order_accepted)
 
 
 def consultation_ordered(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+        data['order_consultation'] = False
         client = {
             'name': data['name'],
             'phone_number': data['phone_number'],
@@ -482,26 +471,20 @@ def consultation_ordered(message: Message) -> None:
 
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
-        InlineKeyboardButton('Посмотреть коллекцию букетов',
+        InlineKeyboardButton(btn.SHOW_ALL_BOUQUETS,
                              callback_data='show_all_bouquets')
     )
 
     bot.send_message(
         message.chat.id,
-        'Консультация заказана. '
-        'В скором времени с Вами свяжется наш флорист.\n\n'
-        'А пока можете посмотреть нашу коллекцию букетов.',
+        msg.CONSULTATION_ORDERED,
         reply_markup=inline_keyboard
     )
 
     master_id = get_master_from_db()['telegram_id']
     bot.send_message(
         master_id,
-        'Новый заказ консультации:\n\n'
-        f'Имя: {client["name"]}\n'
-        f'Номер телефона: {client["phone_number"]}\n'
-        f'Повод: {client["reason"]}\n'
-        f'Желаемая цена: {client["desired_price"]}₽\n'
+        msg.generate_message_for_master(client)
     )
     bot.set_state(message.from_user.id, BotStates.consultation_ordered)
 
@@ -510,20 +493,17 @@ def consultation_ordered(message: Message) -> None:
 def start(message: Message) -> None:
     bot.send_message(
         message.chat.id,
-        'Закажите доставку праздничного букета, собранного специально для '
-        'ваших любимых, родных и коллег.\n'
-        'Наш букет со смыслом станет главным подарком на вашем празднике!'
+        msg.WELCOME
     )
 
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
-    button_yes = InlineKeyboardButton('Да', callback_data='yes')
-    button_no = InlineKeyboardButton('Нет', callback_data='no')
+    button_yes = InlineKeyboardButton(btn.YES, callback_data='yes')
+    button_no = InlineKeyboardButton(btn.NO, callback_data='no')
     inline_keyboard.add(button_yes, button_no)
 
     bot.send_message(
         message.chat.id,
-        'Для продолжения работы с ботом необходимо ваше согласие '
-        'на обработку персональных данных.',
+        msg.PD_AGREEMENT,
         reply_markup=inline_keyboard)
     bot.set_state(message.from_user.id,
                   BotStates.approve_pd, message.chat.id)
