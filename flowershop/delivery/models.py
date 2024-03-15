@@ -215,3 +215,30 @@ class Order(models.Model):
 
     def __str__(self):
         return str(self.client_id)
+
+
+class Consultation(models.Model):
+    '''Консультация'''
+    client_id = models.ForeignKey(Client,
+                                  on_delete=models.CASCADE,
+                                  blank=True,
+                                  null=True)
+    master_id = models.ForeignKey(Master,
+                                  on_delete=models.CASCADE,
+                                  null=True,
+                                  blank=True)
+    reason_id = models.ForeignKey(Reason,
+                                  on_delete=models.CASCADE,
+                                  blank=True,
+                                  null=True)
+    desired_price = models.IntegerField(blank=True,
+                                        null=True,
+                                        verbose_name='Желаемая цена')
+
+    class Meta:
+        verbose_name = 'Консультация'
+        verbose_name_plural = 'Консультация'
+        ordering = ('client_id',)
+
+    def __str__(self):
+        return str(self.client_id)
