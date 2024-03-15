@@ -54,14 +54,15 @@ def create_client_in_db(
     return post_to_db(url, data)
 
 
-def get_client_from_db(username: str) -> dict:
+def get_client_from_db(username: str) -> list:
     url = "http://127.0.0.1:8000/api/v1/clients/"
 
     payload = {
         "search": username
     }
 
-    return get_from_db(url, payload)
+    clients = get_from_db(url, payload)
+    return clients[0]
 
 
 def get_courier_from_db() -> str:

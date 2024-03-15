@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 import telebot
@@ -8,6 +9,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
 from requests.exceptions import HTTPError
+from icecream import ic
 
 from db_utils import get_reasons_from_db, get_requested_bouquets, \
     get_master_from_db, get_courier_from_db, create_client_in_db, \
@@ -21,6 +23,7 @@ bot = telebot.TeleBot(
     token=env.str('TELEGRAM_BOT_TOKEN'),
     state_storage=state_storage
 )
+telebot.logger.setLevel(logging.INFO)
 
 
 class BotStates(StatesGroup):
@@ -45,7 +48,8 @@ class BotStates(StatesGroup):
 def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
-    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+
+    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
@@ -57,12 +61,14 @@ def pd_not_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
     bot.edit_message_reply_markup(chat_id, message.message_id)
+
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
-    button_approve_pd = InlineKeyboardButton(
-        'Я согласен на обработку персональных данных',
-        callback_data='yes'
+    inline_keyboard.add(
+        InlineKeyboardButton(
+            'Я согласен на обработку персональных данных',
+            callback_data='yes'
+        )
     )
-    inline_keyboard.add(button_approve_pd)
 
     bot.send_message(
         chat_id,
@@ -114,8 +120,8 @@ def get_custom_reason(call: CallbackQuery) -> None:
 @bot.message_handler(state=BotStates.specify_reason, func=lambda message: True)
 def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data["username"] = message.from_user.username
-        data["reason"] = message.text
+        data['username'] = message.from_user.username
+        data['reason'] = message.text
 
     get_desired_price(message)
 
@@ -127,7 +133,7 @@ def proccess_reason(call: CallbackQuery) -> None:
     chat_id = message.chat.id
     bot.edit_message_reply_markup(chat_id, message.message_id)
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        data["username"] = call.from_user.username
+        data['username'] = call.from_user.username
         data['reason'] = call.data
 
     get_desired_price(message)
@@ -136,11 +142,11 @@ def proccess_reason(call: CallbackQuery) -> None:
 def get_desired_price(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton("~500₽", callback_data="750"),
-        InlineKeyboardButton("~1000₽", callback_data="1250"),
-        InlineKeyboardButton("~2000₽", callback_data="2250"),
-        InlineKeyboardButton("Больше", callback_data="overprice"),
-        InlineKeyboardButton("Не важно", callback_data="0"),
+        InlineKeyboardButton('~500₽', callback_data='750'),
+        InlineKeyboardButton('~1000₽', callback_data='1250'),
+        InlineKeyboardButton('~2000₽', callback_data='2250'),
+        InlineKeyboardButton('Больше', callback_data='overprice'),
+        InlineKeyboardButton('Не важно', callback_data='0'),
     )
 
     bot.send_message(message.chat.id, 'На какую сумму рассчитываете?',
@@ -171,7 +177,11 @@ def process_desired_price(call: CallbackQuery) -> None:
 
 @bot.callback_query_handler(
     state=BotStates.show_bouquet,
-    func=lambda call: call.data == "show_another_bouquet"
+    func=lambda call: call.data == 'show_another_bouquet'
+)
+@bot.callback_query_handler(
+    state=BotStates.consultation_ordered,
+    func=lambda call: call.data == 'show_all_bouquets'
 )
 def show_bouquet(call: CallbackQuery) -> None:
     message = call.message
@@ -182,16 +192,27 @@ def show_bouquet(call: CallbackQuery) -> None:
     inline_keyboard_no_result.add(
         InlineKeyboardButton(
             'Заказать консультацию',
-            callback_data="order_consultation"
+            callback_data='order_consultation'
         ),
     )
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
+        if call.data == 'show_all_bouquets':
+            bot.set_state(message.chat.id, BotStates.show_bouquet)
+            # update data to show all bouquets
+            data['reason'] = 'no_reason'
+            data['desired_price'] = '0'
+            data['order_consultation'] = False
+            data['found_bouquets'] = get_requested_bouquets(
+                data['reason'], data['desired_price']
+            )
+
         if 'found_bouquets' not in data:
             data['found_bouquets'] = get_requested_bouquets(
                 data['reason'], data['desired_price']
             )
 
+        ic(len(data['found_bouquets']))
         if 'bouquet_index' not in data:
             data['bouquet_index'] = 0
         else:
@@ -224,14 +245,14 @@ def show_bouquet(call: CallbackQuery) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
         InlineKeyboardButton('Заказать этот букет',
-                             callback_data="order_bouquet"),
+                             callback_data='order_bouquet'),
         InlineKeyboardButton(
             'Посмотреть следующий букет',
-            callback_data="show_another_bouquet"
+            callback_data='show_another_bouquet'
         ),
         InlineKeyboardButton(
             'Заказать консультацию',
-            callback_data="order_consultation"
+            callback_data='order_consultation'
         ),
     )
 
@@ -263,11 +284,11 @@ def show_bouquet(call: CallbackQuery) -> None:
 
 @bot.callback_query_handler(
     state=BotStates.show_bouquet,
-    func=lambda call: call.data == "order_bouquet"
+    func=lambda call: call.data == 'order_bouquet'
 )
 @bot.callback_query_handler(
     state=BotStates.show_bouquet,
-    func=lambda call: call.data == "order_consultation"
+    func=lambda call: call.data == 'order_consultation'
 )
 def get_client_name(call: CallbackQuery) -> None:
     message = call.message
@@ -275,8 +296,8 @@ def get_client_name(call: CallbackQuery) -> None:
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        if call.data == "order_consultation":
-            data["order_consultation"] = True
+        if call.data == 'order_consultation':
+            data['order_consultation'] = True
 
     bot.send_message(chat_id,
                      'Отлично. Скажите, как мы можем к Вам обращаться?')
@@ -288,7 +309,7 @@ def get_client_name(call: CallbackQuery) -> None:
 def get_client_phone_number(message: Message) -> None:
     name = message.text
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data["name"] = name
+        data['name'] = name
 
     bot.send_message(
         message.chat.id,
@@ -301,8 +322,8 @@ def get_client_phone_number(message: Message) -> None:
                      func=lambda message: True)
 def proccess_client_phone_number(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data["phone_number"] = message.text
-        need_consultation = data.get("order_consultation")
+        data['phone_number'] = message.text
+        need_consultation = data.get('order_consultation')
 
     if need_consultation:
         consultation_ordered(message)
@@ -322,14 +343,21 @@ def get_client_address(message: Message) -> None:
                      func=lambda message: True)
 def get_delivery_date(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data["address"] = message.text
+        data['address'] = message.text
+
+    current_day = datetime.now().date()
+    avaliable_dates = [
+        InlineKeyboardButton(
+            (current_day + timedelta(days=day)).strftime('%d.%m.%y'),
+            callback_data=(
+                current_day + timedelta(days=day)
+            ).strftime('%d.%m.%y')
+        ) for day in range(1, 5)
+    ]
 
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton("Завтра", callback_data="tomorrow"),
-        InlineKeyboardButton("Послезавтра",
-                             callback_data="day_after_tomorrow"),
-        InlineKeyboardButton("Другой день", callback_data="another_date")
+        *avaliable_dates
     )
 
     bot.send_message(
@@ -347,17 +375,8 @@ def proccess_delivery_date(call: CallbackQuery) -> None:
     chat_id = message.chat.id
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
-    current_daytime = datetime.now()
-    match call.data:
-        case "tomorrow":
-            delivery_date = current_daytime + timedelta(days=1)
-        case "day_after_tomorrow":
-            delivery_date = current_daytime + timedelta(days=2)
-        case _:
-            delivery_date = datetime(1970, 1, 1)
-
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        data["delivery_date"] = delivery_date
+        data['delivery_date'] = datetime.strptime(call.data, '%d.%m.%y')
 
     get_delivery_time(message)
 
@@ -365,9 +384,9 @@ def proccess_delivery_date(call: CallbackQuery) -> None:
 def get_delivery_time(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton("9-13", callback_data="13"),
-        InlineKeyboardButton("13-17", callback_data="17"),
-        InlineKeyboardButton("17-21", callback_data="21")
+        InlineKeyboardButton('9-13', callback_data='13'),
+        InlineKeyboardButton('13-17', callback_data='17'),
+        InlineKeyboardButton('17-21', callback_data='21')
     )
     bot.send_message(
         message.chat.id,
@@ -385,11 +404,11 @@ def order_accepted(call: CallbackQuery) -> None:
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        data["delivery_time"] = call.data
+        data['delivery_time'] = call.data
         client = {
-            "username": data['username'],
-            "address": data['address'],
-            "phone_number": data['phone_number'],
+            'username': data['username'],
+            'address': data['address'],
+            'phone_number': data['phone_number'],
             'name': data['name']
         }
         order = {
@@ -398,6 +417,13 @@ def order_accepted(call: CallbackQuery) -> None:
             'delivery_time': data['delivery_time']
         }
         bouquet = data['current_bouquet']
+
+    delivery_datetime = datetime(
+        order['delivery_date'].year,
+        order['delivery_date'].month,
+        order['delivery_date'].day,
+        int(order['delivery_time'])
+    )
 
     try:
         client_id = create_client_in_db(
@@ -408,21 +434,15 @@ def order_accepted(call: CallbackQuery) -> None:
     except HTTPError:
         client_id = get_client_from_db(client['username'])['id']
 
-    delivery_datetime = datetime(
-        order['delivery_date'].year,
-        order['delivery_date'].month,
-        order['delivery_date'].day,
-        int(order['delivery_time'])
-    )
-
     courier = get_courier_from_db()
+    price_with_delivery = courier['orders_count'] + bouquet['price']
     create_order_in_db(
         client_id,
         bouquet['id'],
         delivery_datetime,
         get_master_from_db()['id'],
         courier['id'],
-        bouquet['price']  # TODO: price with delivery cost from courier model
+        price_with_delivery
     )
 
     courier_tg_id = courier['telegram_id']
@@ -433,7 +453,7 @@ def order_accepted(call: CallbackQuery) -> None:
         f'Имя: {client["name"]}\n'
         f'Номер телефона: {client["phone_number"]}\n'
         f'Букет: {bouquet["title"]}\n'
-        f'Цена: {bouquet["price"]}\n'
+        f'Цена с доставкой: {price_with_delivery}\n'
         f'Адрес доставки: {client["address"]}\n'
         f'Дата и время доставки: {delivery_datetime_readable}\n\n'
     )
@@ -442,7 +462,7 @@ def order_accepted(call: CallbackQuery) -> None:
         chat_id,
         'Ваш заказ принят.\n\n'
         f'Букет: {bouquet["title"]}\n'
-        f'Цена: {bouquet["price"]}\n'
+        f'Цена с доставкой: {price_with_delivery}\n'
         f'Адрес доставки: {client["address"]}\n'
         f'Дата и время доставки: {delivery_datetime_readable}\n\n'
         'Наш менеджер скоро свяжется с вами '
@@ -454,15 +474,24 @@ def order_accepted(call: CallbackQuery) -> None:
 def consultation_ordered(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         client = {
-            "name": data["name"],
-            "phone_number": data["phone_number"],
-            "reason": data["reason"],
-            "desired_price": data['desired_price'],
+            'name': data['name'],
+            'phone_number': data['phone_number'],
+            'reason': data['reason'],
+            'desired_price': data['desired_price'],
         }
+
+    inline_keyboard = InlineKeyboardMarkup(row_width=1)
+    inline_keyboard.add(
+        InlineKeyboardButton('Посмотреть коллекцию букетов',
+                             callback_data='show_all_bouquets')
+    )
 
     bot.send_message(
         message.chat.id,
-        'Консультация заказана. В скором времени с Вами свяжется наш флорист.'
+        'Консультация заказана. '
+        'В скором времени с Вами свяжется наш флорист.\n\n'
+        'А пока можете посмотреть нашу коллекцию букетов.',
+        reply_markup=inline_keyboard
     )
 
     master_id = get_master_from_db()['telegram_id']
