@@ -9,6 +9,7 @@ app_name = 'api'
 router = routers.DefaultRouter()
 router.register('clients', ClientViewSet)
 router.register('orders', OrderViewSet)
+router.register('consultations', OrderViewSet)
 
 
 urlpatterns = [
