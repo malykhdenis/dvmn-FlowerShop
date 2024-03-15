@@ -7,11 +7,11 @@ from telebot.storage import StateMemoryStorage
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
-from icecream import ic
+from requests.exceptions import HTTPError
 
 from db_utils import get_reasons_from_db, get_requested_bouquets, \
-    get_master_tg_id_from_db, create_client_in_db
-
+    get_master_from_db, get_courier_from_db, create_client_in_db, \
+    get_client_from_db, create_order_in_db
 
 env = Env()
 env.read_env()
@@ -125,10 +125,10 @@ def proccess_custom_reason(message: Message) -> None:
 def proccess_reason(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
+    bot.edit_message_reply_markup(chat_id, message.message_id)
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data["username"] = call.from_user.username
         data['reason'] = call.data
-    bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_desired_price(message)
 
@@ -188,13 +188,14 @@ def show_bouquet(call: CallbackQuery) -> None:
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         if 'found_bouquets' not in data:
-            bouquets = get_requested_bouquets(data['reason'], data['desired_price'])
-            data['found_bouquets'] = bouquets
+            data['found_bouquets'] = get_requested_bouquets(
+                data['reason'], data['desired_price']
+            )
 
         if 'bouquet_index' not in data:
             data['bouquet_index'] = 0
         else:
-            data['bouquet_index'] = data['bouquet_index'] + 1
+            data['bouquet_index'] += 1
 
         try:
             if data['found_bouquets']:
@@ -347,8 +348,6 @@ def proccess_delivery_date(call: CallbackQuery) -> None:
 
     current_daytime = datetime.now()
     match call.data:
-        case "today":
-            delivery_date = current_daytime
         case "tomorrow":
             delivery_date = current_daytime + timedelta(days=1)
         case "day_after_tomorrow":
@@ -365,9 +364,9 @@ def proccess_delivery_date(call: CallbackQuery) -> None:
 def get_delivery_time(message: Message) -> None:
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton("9-13", callback_data="9-13"),
-        InlineKeyboardButton("13-17", callback_data="13-17"),
-        InlineKeyboardButton("17-21", callback_data="17-21")
+        InlineKeyboardButton("9-13", callback_data="13"),
+        InlineKeyboardButton("13-17", callback_data="17"),
+        InlineKeyboardButton("17-21", callback_data="21")
     )
     bot.send_message(
         message.chat.id,
@@ -385,28 +384,68 @@ def order_accepted(call: CallbackQuery) -> None:
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
-        data["time"] = call.data
+        data["delivery_time"] = call.data
         ic(data)
         client = {
             "username": data['username'],
             "address": data['address'],
-            "phone_number": data['phone_number']
+            "phone_number": data['phone_number'],
+            'name': data['name']
         }
         order = {
             'bouquet': data['current_bouquet'],
             'delivery_date': data['delivery_date'],
             'delivery_time': data['delivery_time']
         }
+        bouquet = data['current_bouquet']
 
-    client_id = create_client_in_db(
-        client['username'],
-        client['address'],
-        client['phone_number']
-    ).get('id')
+    try:
+        client_id = create_client_in_db(
+            client['username'],
+            client['address'],
+            client['phone_number']
+        )['id']
+    except HTTPError:
+        client_id = get_client_from_db(client['username'])['id']
+
+    delivery_datetime = datetime(
+        order['delivery_date'].year,
+        order['delivery_date'].month,
+        order['delivery_date'].day,
+        int(order['delivery_time'])
+    )
+
+    courier = get_courier_from_db()
+    create_order_in_db(
+        client_id,
+        bouquet['id'],
+        delivery_datetime,
+        get_master_from_db()['id'],
+        courier['id'],
+        bouquet['price']  # TODO: price with delivery cost from courier model
+    )
+
+    courier_tg_id = courier['telegram_id']
+    delivery_datetime_readable = delivery_datetime.strftime('%d/%m/%Y %H:%M')
+    bot.send_message(
+        courier_tg_id,
+        'Поступил новый заказ.\n\n'
+        f'Имя: {client["name"]}\n'
+        f'Номер телефона: {client["phone_number"]}\n'
+        f'Букет: {bouquet["title"]}\n'
+        f'Цена: {bouquet["price"]}\n'
+        f'Адрес доставки: {client["address"]}\n'
+        f'Дата и время доставки: {delivery_datetime_readable}\n\n'
+    )
 
     bot.send_message(
         chat_id,
-        'Ваш заказ принят. Наш менеджер скоро свяжется с вами '
+        'Ваш заказ принят.\n\n'
+        f'Букет: {bouquet["title"]}\n'
+        f'Цена: {bouquet["price"]}\n'
+        f'Адрес доставки: {client["address"]}\n'
+        f'Дата и время доставки: {delivery_datetime_readable}\n\n'
+        'Наш менеджер скоро свяжется с вами '
         'для уточнения деталей.'
     )
     bot.set_state(message.from_user.id, BotStates.order_accepted)
@@ -426,7 +465,7 @@ def consultation_ordered(message: Message) -> None:
         'Консультация заказана. В скором времени с Вами свяжется наш флорист.'
     )
 
-    master_id = get_master_tg_id_from_db()
+    master_id = get_master_from_db()['telegram_id']
     bot.send_message(
         master_id,
         'Новый заказ консультации:\n\n'
