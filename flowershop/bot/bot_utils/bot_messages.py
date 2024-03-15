@@ -48,7 +48,8 @@ GET_DELIVERY_TIME = 'И последнее: в какое время вы мож
 CONSULTATION_ORDERED = (
     'Консультация заказана. '
     'В скором времени с Вами свяжется наш флорист.\n\n'
-    'А пока можете посмотреть нашу коллекцию букетов.'
+    'А пока можете посмотреть нашу коллекцию букетов.\n\n'
+    'Для нового заказа используйте /start.'
 )
 
 NEW_ORDER_ACCEPTED = 'Поступил новый заказ.\n\n'
@@ -96,6 +97,7 @@ def generate_message_for_master(client: dict) -> str:
 
 
 def generate_order_info(
+        order_number: str,
         name: str,
         phone_number: str,
         bouquet_title: str,
@@ -109,10 +111,11 @@ def generate_order_info(
     delivery_datetime_readable = delivery_datetime.strftime('%d/%m/%Y %H:%M')
 
     order_info = (
+        f'Номер заказа: {order_number}\n'
         f'Имя: {name}\n'
         f'Номер телефона: {phone_number}\n'
         f'Букет: {bouquet_title}\n'
-        f'Цена с доставкой: {price}\n'
+        f'Цена с доставкой: {price}₽\n'
         f'Адрес доставки: {address}\n'
         f'Дата и время доставки: {delivery_datetime_readable}\n\n'
     )

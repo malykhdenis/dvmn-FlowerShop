@@ -30,7 +30,7 @@ def get_requested_bouquets(reason: str = None, price: str = None) -> list:
     if reason != 'no_reason':
         payload['search'] = reason
 
-    if price == 'overprice':
+    if price == '2001':
         payload['overprice'] = True
     elif price != '0':
         payload['price__lte'] = price
@@ -91,6 +91,23 @@ def create_order_in_db(
         'master_id': master_id,
         'courier_id': courier_id,
         'total_price': total_price,
+    }
+
+    return post_to_db(url, data)
+
+
+def create_consultation_in_db(
+    client_id: str,
+    master_id: str,
+    reason_id: str = None,
+    desired_price: str = None
+) -> dict:
+    url = 'http://127.0.0.1:8000/api/v1/consultations/'
+    data = {
+        'client_id': client_id,
+        'master_id': master_id,
+        'reason_id': reason_id,
+        'desired_price': desired_price,
     }
 
     return post_to_db(url, data)

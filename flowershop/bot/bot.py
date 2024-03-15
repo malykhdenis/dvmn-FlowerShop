@@ -9,11 +9,10 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
 from requests.exceptions import HTTPError
-from icecream import ic
 
 from bot_utils.db_utils import get_reasons_from_db, get_requested_bouquets, \
     get_master_from_db, get_courier_from_db, create_client_in_db, \
-    get_client_from_db, create_order_in_db
+    get_client_from_db, create_order_in_db, create_consultation_in_db
 from bot_utils import bot_messages as msg
 from bot_utils import bot_buttons as btn
 
@@ -51,7 +50,7 @@ def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
 
-    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
@@ -120,6 +119,7 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data['username'] = message.from_user.username
         data['reason'] = message.text
+        data['reason_id'] = None
 
     get_desired_price(message)
 
@@ -133,6 +133,7 @@ def proccess_reason(call: CallbackQuery) -> None:
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['username'] = call.from_user.username
         data['reason'] = call.data
+        data['reason_id'] = None
 
     get_desired_price(message)
 
@@ -143,7 +144,7 @@ def get_desired_price(message: Message) -> None:
         InlineKeyboardButton('~500₽', callback_data='500'),
         InlineKeyboardButton('~1000₽', callback_data='1000'),
         InlineKeyboardButton('~2000₽', callback_data='2000'),
-        InlineKeyboardButton('Больше', callback_data='overprice'),
+        InlineKeyboardButton('Больше', callback_data='2001'),
         InlineKeyboardButton('Не важно', callback_data='0'),
     )
 
@@ -210,7 +211,6 @@ def show_bouquet(call: CallbackQuery) -> None:
                 data['reason'], data['desired_price']
             )
 
-        ic(len(data['found_bouquets']))
         if 'bouquet_index' not in data:
             data['bouquet_index'] = 0
         else:
@@ -252,14 +252,7 @@ def show_bouquet(call: CallbackQuery) -> None:
     message_text = msg.generate_bouquet_info(current_bouquet)
     image_url = current_bouquet['photo']
     if image_url:
-        bot.send_photo(
-            chat_id,
-            image_url,
-            message_text,
-            reply_markup=inline_keyboard,
-            parse_mode='markdown'
-        )
-        return
+        bot.send_photo(chat_id, image_url)
 
     bot.send_message(
         chat_id,
@@ -422,7 +415,7 @@ def order_accepted(call: CallbackQuery) -> None:
 
     courier = get_courier_from_db()
     price_with_delivery = courier['orders_count'] + bouquet['price']
-    create_order_in_db(
+    new_order = create_order_in_db(
         client_id,
         bouquet['id'],
         delivery_datetime,
@@ -433,6 +426,7 @@ def order_accepted(call: CallbackQuery) -> None:
 
     courier_tg_id = courier['telegram_id']
     order_info = msg.generate_order_info(
+        new_order['id'],
         client["name"],
         client["phone_number"],
         bouquet["title"],
@@ -463,9 +457,11 @@ def consultation_ordered(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data['order_consultation'] = False
         client = {
+            'username': data['username'],
             'name': data['name'],
             'phone_number': data['phone_number'],
             'reason': data['reason'],
+            'reason_id': data['reason_id'],
             'desired_price': data['desired_price'],
         }
 
@@ -475,16 +471,34 @@ def consultation_ordered(message: Message) -> None:
                              callback_data='show_all_bouquets')
     )
 
+    try:
+        client_id = create_client_in_db(
+            client['username'],
+            phone_number=client['phone_number']
+        )['id']
+    except HTTPError:
+        client_id = get_client_from_db(client['username'])['id']
+
+    master = get_master_from_db()
+    master_id = master['id']
+    master_tg_id = master['telegram_id']
+
+    # TODO: Get reason by it's ID
+    create_consultation_in_db(
+        client_id,
+        master_id,
+        desired_price=client['desired_price']
+    )
+
+    bot.send_message(
+        master_tg_id,
+        msg.generate_message_for_master(client)
+    )
+
     bot.send_message(
         message.chat.id,
         msg.CONSULTATION_ORDERED,
         reply_markup=inline_keyboard
-    )
-
-    master_id = get_master_from_db()['telegram_id']
-    bot.send_message(
-        master_id,
-        msg.generate_message_for_master(client)
     )
     bot.set_state(message.from_user.id, BotStates.consultation_ordered)
 
