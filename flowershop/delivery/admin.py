@@ -1,7 +1,11 @@
 from django.contrib import admin
 
 from delivery.models import (Bouquet, BouquetFlower, BouquetReason, Client,
-                             Courier, Flower, Master, Order, Reason)
+                             Courier, Flower, Master, Order, Reason,
+                             Consultation)
+
+admin.site.register(Consultation)
+
 
 
 @admin.register(Client)
