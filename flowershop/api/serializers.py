@@ -30,7 +30,6 @@ class BouquetSerializer(serializers.ModelSerializer):
     """Serializer for Bouquet model."""
     reasons = ReasonSerializer(many=True)
     flowers = FlowerSerializer(many=True)
-    photo = Base64ImageField()
 
     class Meta:
         fields = "__all__"

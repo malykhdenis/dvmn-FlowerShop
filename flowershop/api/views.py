@@ -11,6 +11,7 @@ class CreateRetrieveUpdateViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
+    mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
     """Mixins for Client."""
@@ -21,6 +22,8 @@ class ClientViewSet(CreateRetrieveUpdateViewSet):
     """ViewSet for Client model."""
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    search_fields = ('=username',)
 
 
 class ReasonList(generics.ListCreateAPIView):
