@@ -1,4 +1,3 @@
-from drf_extra_fields.fields import Base64ImageField
 from rest_framework import serializers
 
 from delivery.models import (Bouquet, Client, Consultation, Courier, Flower,
