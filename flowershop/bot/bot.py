@@ -7,8 +7,11 @@ from telebot.storage import StateMemoryStorage
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     CallbackQuery, Message
 from environs import Env
+from icecream import ic
 
-from db_utils import get_reasons_from_db, get_requested_bouquets
+from db_utils import get_reasons_from_db, get_requested_bouquets, \
+    get_master_tg_id_from_db, create_client_in_db
+
 
 env = Env()
 env.read_env()
@@ -113,11 +116,6 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data["username"] = message.from_user.username
         data["reason"] = message.text
-        # clear info about previously filtered bouquets if any
-        if 'found_bouquets' in data:
-            del data['found_bouquets']
-        if 'bouquet_index' in data:
-            del data['bouquet_index']
 
     get_desired_price(message)
 
@@ -158,6 +156,13 @@ def process_desired_price(call: CallbackQuery) -> None:
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['desired_price'] = call.data
+        # clear info about previously filtered bouquets if any
+        if 'found_bouquets' in data:
+            del data['found_bouquets']
+        if 'bouquet_index' in data:
+            del data['bouquet_index']
+        if 'current_bouquet' in data:
+            del data['current_bouquet']
 
     bot.set_state(message.chat.id, BotStates.show_bouquet)
 
@@ -184,7 +189,6 @@ def show_bouquet(call: CallbackQuery) -> None:
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         if 'found_bouquets' not in data:
             bouquets = get_requested_bouquets(data['reason'], data['desired_price'])
-            print(bouquets)
             data['found_bouquets'] = bouquets
 
         if 'bouquet_index' not in data:
@@ -201,6 +205,7 @@ def show_bouquet(call: CallbackQuery) -> None:
             # start showing bouquets from the beginning
             data['bouquet_index'] = 0
             current_bouquet = data['found_bouquets'][data['bouquet_index']]
+        data['current_bouquet'] = current_bouquet
 
     if not current_bouquet:
         bot.send_message(
@@ -228,28 +233,30 @@ def show_bouquet(call: CallbackQuery) -> None:
         ),
     )
 
+    message_text = (
+        f'{current_bouquet["title"]}\n\n'
+        f'{current_bouquet["description"]}\n\n'
+        f'Состав: {", ".join(flowers)}\n\n'
+        f'Цена: {current_bouquet["price"]}₽\n\n'
+        'Или хотите что-то ещё более уникальное? Подберите другой букет '
+        'из нашей коллекции или закажите консультацию флориста.'
+    )
+    image_url = current_bouquet['photo']
+
+    if image_url:
+        bot.send_photo(
+            chat_id,
+            image_url,
+            message_text,
+            reply_markup=inline_keyboard
+        )
+        return
+
     bot.send_message(
         chat_id,
-        f'{current_bouquet["title"]}\n\n'
-        'TODO: Описание букета.\n\n'
-        f'Состав: {", ".join(flowers)}\n\n'
-        f'Цена: {current_bouquet["price"]}\n\n'
-        'Или хотите что-то ещё более уникальное? Подберите другой букет '
-        'из нашей коллекции или закажите консультацию флориста.',
+        message_text,
         reply_markup=inline_keyboard
     )
-
-    # bot.send_photo(
-    #     chat_id,
-    #     "TODO_image_url",
-    #     f'{current_bouquet["title"]}\n\n'
-    #     'TODO: Описание букета.\n\n'
-    #     f'Состав: {", ".join(flowers)}\n\n'
-    #     f'Цена: {current_bouquet["price"]}\n\n'
-    #     'Или хотите что-то ещё более уникальное? Подберите другой букет '
-    #     'из нашей коллекции или закажите консультацию флориста.',
-    #     reply_markup=inline_keyboard
-    # )
 
 
 @bot.callback_query_handler(
@@ -292,10 +299,12 @@ def get_client_phone_number(message: Message) -> None:
                      func=lambda message: True)
 def proccess_client_phone_number(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data["phone"] = message.text
-        if data.get("order_consultation"):
-            consultation_ordered(message)
-            return
+        data["phone_number"] = message.text
+        need_consultation = data.get("order_consultation")
+
+    if need_consultation:
+        consultation_ordered(message)
+        return
     get_client_address(message)
 
 
@@ -315,7 +324,6 @@ def get_delivery_date(message: Message) -> None:
 
     inline_keyboard = InlineKeyboardMarkup(row_width=2)
     inline_keyboard.add(
-        InlineKeyboardButton("Сегодня", callback_data="today"),
         InlineKeyboardButton("Завтра", callback_data="tomorrow"),
         InlineKeyboardButton("Послезавтра",
                              callback_data="day_after_tomorrow"),
@@ -378,6 +386,23 @@ def order_accepted(call: CallbackQuery) -> None:
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data["time"] = call.data
+        ic(data)
+        client = {
+            "username": data['username'],
+            "address": data['address'],
+            "phone_number": data['phone_number']
+        }
+        order = {
+            'bouquet': data['current_bouquet'],
+            'delivery_date': data['delivery_date'],
+            'delivery_time': data['delivery_time']
+        }
+
+    client_id = create_client_in_db(
+        client['username'],
+        client['address'],
+        client['phone_number']
+    ).get('id')
 
     bot.send_message(
         chat_id,
@@ -386,13 +411,29 @@ def order_accepted(call: CallbackQuery) -> None:
     )
     bot.set_state(message.from_user.id, BotStates.order_accepted)
 
-    # TODO: make order processing
-
 
 def consultation_ordered(message: Message) -> None:
+    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+        client = {
+            "name": data["name"],
+            "phone_number": data["phone_number"],
+            "reason": data["reason"],
+            "desired_price": data['desired_price'],
+        }
+
     bot.send_message(
         message.chat.id,
         'Консультация заказана. В скором времени с Вами свяжется наш флорист.'
+    )
+
+    master_id = get_master_tg_id_from_db()
+    bot.send_message(
+        master_id,
+        'Новый заказ консультации:\n\n'
+        f'Имя: {client["name"]}\n'
+        f'Номер телефона: {client["phone_number"]}\n'
+        f'Повод: {client["reason"]}\n'
+        f'Желаемая цена: {client["desired_price"]}₽\n'
     )
     bot.set_state(message.from_user.id, BotStates.consultation_ordered)
 
@@ -418,8 +459,6 @@ def start(message: Message) -> None:
         reply_markup=inline_keyboard)
     bot.set_state(message.from_user.id,
                   BotStates.approve_pd, message.chat.id)
-
-    get_reason(message)
 
 
 def main() -> None:

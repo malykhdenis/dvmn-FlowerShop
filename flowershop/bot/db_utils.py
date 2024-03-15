@@ -9,6 +9,13 @@ def get_from_db(db_url: str, payload: dict = None) -> list:
     return response.json()
 
 
+def post_to_db(db_url: str, data: dict = None) -> dict:
+    response = rq.post(db_url, data=data)
+    response.raise_for_status()
+
+    return response.json()
+
+
 def get_reasons_from_db() -> list:
     url = "http://127.0.0.1:8000/api/v1/reasons"
     return get_from_db(url)
@@ -31,9 +38,34 @@ def get_requested_bouquets(reason: str = None, price: str = None) -> list:
     return get_from_db(url, payload)
 
 
+def create_client_in_db(
+    username: str,
+    address: str = None,
+    phone_number: str = None
+) -> dict:
+    url = "http://127.0.0.0:8000/api/v1/clients/"
+
+    data = {
+        "username": username,
+        "address": address,
+        "phone_number": phone_number,
+    }
+
+    return post_to_db(url, data)
+
+
 def create_order_in_db():
+    # rq.post
     pass
 
 
 def get_courier_id_from_db():
     pass
+
+
+def get_master_tg_id_from_db() -> str:
+    url = 'http://127.0.0.1:8000/api/v1/master/1'
+
+    master = get_from_db(url)
+
+    return master['telegram_id']
