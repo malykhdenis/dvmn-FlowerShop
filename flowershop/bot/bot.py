@@ -223,7 +223,8 @@ def show_bouquet(call: CallbackQuery) -> None:
 
     inline_keyboard = InlineKeyboardMarkup(row_width=1)
     inline_keyboard.add(
-        InlineKeyboardButton('Заказать этот букет', callback_data="order_bouquet"),
+        InlineKeyboardButton('Заказать этот букет',
+                             callback_data="order_bouquet"),
         InlineKeyboardButton(
             'Посмотреть следующий букет',
             callback_data="show_another_bouquet"
@@ -385,7 +386,6 @@ def order_accepted(call: CallbackQuery) -> None:
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data["delivery_time"] = call.data
-        ic(data)
         client = {
             "username": data['username'],
             "address": data['address'],
