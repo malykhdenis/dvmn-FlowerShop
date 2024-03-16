@@ -42,8 +42,17 @@ ORDER_CONSULTATION = (
 GET_CLIENT_NAME = 'Отлично. Скажите, как мы можем к Вам обращаться?'
 GET_CLIENT_PHONE = 'Теперь введите ваш номер телефона.'
 GET_CLIENT_ADDRESS = 'Замечательно! Теперь введите адрес доставки.'
-GET_DELIVERY_DATE = 'Уже почти всё. На какой день планируете доставку?'
-GET_DELIVERY_TIME = 'И последнее: в какое время вы можете принять курьера?'
+GET_DELIVERY_DATE = 'Хорошо, а какой день планируете доставку?'
+GET_DELIVERY_TIME = 'Почти закончили. В какое время вы можете принять курьера?'
+GET_PAYMENT_METHOD = 'И последнее: выберите предпочтительный способ оплаты.'
+
+DELIVERY = 'Доставка'
+
+PAYMENT_SUCCESS = 'Оплата прошла успешно.'
+PAYMENT_FAILURE = (
+    'Произошла ошибка при оплате. '
+    'Подождите несколько минут и попробуйте снова.'
+)
 
 CONSULTATION_ORDERED = (
     'Консультация заказана. '
@@ -103,11 +112,16 @@ def generate_order_info(
         bouquet_title: str,
         price: int,
         address: str,
-        delivery_datetime: datetime
+        delivery_datetime: datetime,
+        payment: str
 ) -> str:
     '''
     Generates information about client's order.
     '''
+    if payment == 'cash':
+        payment_method = 'Наличными курьеру'
+    elif payment == 'online':
+        payment_method = 'Онлайн (успешно)'
     delivery_datetime_readable = delivery_datetime.strftime('%d/%m/%Y %H:%M')
 
     order_info = (
@@ -117,7 +131,8 @@ def generate_order_info(
         f'Букет: {bouquet_title}\n'
         f'Цена с доставкой: {price}₽\n'
         f'Адрес доставки: {address}\n'
-        f'Дата и время доставки: {delivery_datetime_readable}\n\n'
+        f'Дата и время доставки: {delivery_datetime_readable}\n'
+        f'Оплата: {payment_method}\n\n'
     )
 
     return order_info
