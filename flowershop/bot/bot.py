@@ -81,7 +81,7 @@ def get_reason(message: Message) -> None:
     reasons = get_reasons_from_db()
     reason_buttons = [
         InlineKeyboardButton(
-            reason['name'], callback_data=reason['name']
+            reason['name'], callback_data=reason['id']
         ) for reason in reasons
     ]
 
@@ -119,7 +119,7 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data['username'] = message.from_user.username
         data['reason'] = message.text
-        data['reason_id'] = None
+        data['custom_reason'] = True
 
     get_desired_price(message)
 
@@ -133,7 +133,7 @@ def proccess_reason(call: CallbackQuery) -> None:
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['username'] = call.from_user.username
         data['reason'] = call.data
-        data['reason_id'] = None
+        data['custom_reason'] = False
 
     get_desired_price(message)
 
@@ -460,8 +460,7 @@ def consultation_ordered(message: Message) -> None:
             'username': data['username'],
             'name': data['name'],
             'phone_number': data['phone_number'],
-            'reason': data['reason'],
-            'reason_id': data['reason_id'],
+            'reason_id': data['reason'],
             'desired_price': data['desired_price'],
         }
 
@@ -487,7 +486,8 @@ def consultation_ordered(message: Message) -> None:
     create_consultation_in_db(
         client_id,
         master_id,
-        desired_price=client['desired_price']
+        client['reason_id'],
+        client['desired_price']
     )
 
     bot.send_message(

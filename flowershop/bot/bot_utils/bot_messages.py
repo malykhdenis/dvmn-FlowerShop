@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from .db_utils import get_reason_by_id
+
 
 WELCOME = (
     'Закажите доставку праздничного букета, собранного специально для '
@@ -85,11 +87,16 @@ def generate_message_for_master(client: dict) -> str:
     Generates message for master that contains all necessary
     information about client.
     '''
+    reason_id: str = client['reason_id']
+    if reason_id.isnumeric():
+        reason_name = get_reason_by_id(reason_id)['name']
+    else:
+        reason_name = reason_id
     message = (
         'Новый заказ консультации:\n\n'
         f'Имя: {client["name"]}\n'
         f'Номер телефона: {client["phone_number"]}\n'
-        f'Повод: {client["reason"]}\n'
+        f'Повод: {reason_name}\n'
         f'Желаемая цена: {client["desired_price"]}₽\n'
     )
 
