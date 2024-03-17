@@ -30,7 +30,7 @@ def get_reason_by_id(reason_id: str) -> dict:
     return get_from_db(reason_url)
 
 
-def get_requested_bouquets(reason: str = None, price: str = None) -> list:
+def get_requested_bouquets(reason: str, price: str = None) -> list:
     url = "http://127.0.0.1:8000/api/v1/bouquets"
 
     payload = {}
