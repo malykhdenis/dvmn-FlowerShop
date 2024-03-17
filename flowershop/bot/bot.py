@@ -54,7 +54,7 @@ def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
 
-    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
@@ -85,7 +85,7 @@ def get_reason(message: Message) -> None:
     reasons = get_reasons_from_db()
     reason_buttons = [
         InlineKeyboardButton(
-            reason['name'], callback_data=reason['name']
+            reason['name'], callback_data=reason['id']
         ) for reason in reasons
     ]
 
@@ -123,7 +123,6 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data['username'] = message.from_user.username
         data['reason'] = message.text
-        data['reason_id'] = None
 
     get_desired_price(message)
 
@@ -137,7 +136,6 @@ def proccess_reason(call: CallbackQuery) -> None:
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['username'] = call.from_user.username
         data['reason'] = call.data
-        data['reason_id'] = None
 
     get_desired_price(message)
 
@@ -435,18 +433,15 @@ def get_payment_from_user(call: CallbackQuery):
                      amount=DELIVERY_PRICE*kopecks_in_rouble)
     ]
 
+    invoice_payload = str(datetime.timestamp(datetime.now()))
     bot.send_invoice(
         chat_id,
         bouquet_title,
         bouquet['description'],
-        'invoice_payload_test',
+        invoice_payload,
         env.str('PAYMENT_TG_TOKEN'),
         'rub',
         price,
-        photo_url=bouquet['photo'],
-        photo_height=512,
-        photo_width=512,
-        photo_size=512,
     )
 
     bot.set_state(message.from_user.id, BotStates.get_payment)
@@ -548,8 +543,7 @@ def consultation_ordered(message: Message) -> None:
             'username': data['username'],
             'name': data['name'],
             'phone_number': data['phone_number'],
-            'reason': data['reason'],
-            'reason_id': data['reason_id'],
+            'reason_id': data['reason'],
             'desired_price': data['desired_price'],
         }
 
@@ -575,7 +569,8 @@ def consultation_ordered(message: Message) -> None:
     create_consultation_in_db(
         client_id,
         master_id,
-        desired_price=client['desired_price']
+        client['reason_id'],
+        client['desired_price']
     )
 
     bot.send_message(
