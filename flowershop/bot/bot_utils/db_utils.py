@@ -1,4 +1,5 @@
 from datetime import datetime
+from urllib.parse import urljoin
 
 import requests as rq
 
@@ -22,13 +23,24 @@ def get_reasons_from_db() -> list:
     return get_from_db(url)
 
 
-def get_requested_bouquets(reason: str = None, price: str = None) -> list:
+def get_reason_by_id(reason_id: str) -> dict:
+    api_url = "http://127.0.0.1:8000/api/v1/reasons/"
+    reason_url = urljoin(api_url, reason_id)
+
+    return get_from_db(reason_url)
+
+
+def get_requested_bouquets(reason: str, price: str = None) -> list:
     url = "http://127.0.0.1:8000/api/v1/bouquets"
 
     payload = {}
 
     if reason != 'no_reason':
-        payload['search'] = reason
+        if reason.isdecimal():
+            reason = get_reason_by_id(reason)
+            payload['search'] = reason['name']
+        else:
+            payload['search'] = reason
 
     if price == '2001':
         payload['overprice'] = True
@@ -106,8 +118,10 @@ def create_consultation_in_db(
     data = {
         'client_id': client_id,
         'master_id': master_id,
-        'reason_id': reason_id,
         'desired_price': desired_price,
     }
+
+    if reason_id.isdecimal():
+        data['reason_id'] = reason_id
 
     return post_to_db(url, data)
