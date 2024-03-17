@@ -6,7 +6,7 @@ from telebot import custom_filters
 from telebot.handler_backends import State, StatesGroup
 from telebot.storage import StateMemoryStorage
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
-    CallbackQuery, Message
+    CallbackQuery, Message, LabeledPrice, PreCheckoutQuery
 from environs import Env
 from requests.exceptions import HTTPError
 
@@ -26,6 +26,8 @@ bot = telebot.TeleBot(
 )
 telebot.logger.setLevel(logging.INFO)
 
+DELIVERY_PRICE = 500
+
 
 class BotStates(StatesGroup):
     start = State()
@@ -40,6 +42,8 @@ class BotStates(StatesGroup):
     get_client_address = State()
     get_delivery_date = State()
     get_delivery_time = State()
+    select_payment_method = State()
+    get_payment = State()
     order_accepted = State()
     consultation_ordered = State()
 
@@ -50,7 +54,7 @@ def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
 
-    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
@@ -119,7 +123,6 @@ def proccess_custom_reason(message: Message) -> None:
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
         data['username'] = message.from_user.username
         data['reason'] = message.text
-        data['custom_reason'] = True
 
     get_desired_price(message)
 
@@ -133,7 +136,6 @@ def proccess_reason(call: CallbackQuery) -> None:
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['username'] = call.from_user.username
         data['reason'] = call.data
-        data['custom_reason'] = False
 
     get_desired_price(message)
 
@@ -377,13 +379,92 @@ def get_delivery_time(message: Message) -> None:
 
 @bot.callback_query_handler(state=BotStates.get_delivery_time,
                             func=lambda call: True)
-def order_accepted(call: CallbackQuery) -> None:
+def get_payment_method(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     with bot.retrieve_data(call.from_user.id, chat_id) as data:
         data['delivery_time'] = call.data
+
+    inline_keyborard = InlineKeyboardMarkup(row_width=2)
+    inline_keyborard.add(
+        InlineKeyboardButton(btn.PAYMENT_ONLINE, callback_data='online'),
+        InlineKeyboardButton(btn.PAYMENT_CASH, callback_data='cash')
+    )
+
+    bot.send_message(
+        chat_id,
+        msg.GET_PAYMENT_METHOD,
+        reply_markup=inline_keyborard
+    )
+
+    bot.set_state(message.chat.id, BotStates.select_payment_method)
+
+
+@bot.callback_query_handler(state=BotStates.select_payment_method,
+                            func=lambda call: True)
+def process_payment_method(call: CallbackQuery) -> None:
+    message = call.message
+    chat_id = message.chat.id
+    bot.edit_message_reply_markup(chat_id, message.message_id)
+
+    with bot.retrieve_data(call.from_user.id, chat_id) as data:
+        data['payment_method'] = call.data
+
+    if call.data == 'cash':
+        order_accepted(message)
+    elif call.data == 'online':
+        get_payment_from_user(call)
+
+
+def get_payment_from_user(call: CallbackQuery):
+    message = call.message
+    chat_id = message.chat.id
+    with bot.retrieve_data(call.from_user.id, chat_id) as data:
+        bouquet = data['current_bouquet']
+
+    bouquet_title = bouquet['title']
+    kopecks_in_rouble = 100
+    price = [
+        LabeledPrice(label=bouquet_title,
+                     amount=int(bouquet['price'])*kopecks_in_rouble),
+        LabeledPrice(label=msg.DELIVERY,
+                     amount=DELIVERY_PRICE*kopecks_in_rouble)
+    ]
+
+    invoice_payload = str(datetime.timestamp(datetime.now()))
+    bot.send_invoice(
+        chat_id,
+        bouquet_title,
+        bouquet['description'],
+        invoice_payload,
+        env.str('PAYMENT_TG_TOKEN'),
+        'rub',
+        price,
+    )
+
+    bot.set_state(message.from_user.id, BotStates.get_payment)
+
+
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def checkout(pre_checkout_query: PreCheckoutQuery) -> None:
+    bot.answer_pre_checkout_query(
+        pre_checkout_query.id,
+        ok=True,
+        error_message=msg.PAYMENT_FAILURE
+    )
+
+
+@bot.message_handler(content_types=['successful_payment'])
+def got_payment(message: Message) -> None:
+    bot.send_message(message.chat.id, msg.PAYMENT_SUCCESS)
+
+    order_accepted(message)
+
+
+def order_accepted(message: Message) -> None:
+    with bot.retrieve_data(message.chat.id, message.chat.id) as data:
         client = {
             'username': data['username'],
             'address': data['address'],
@@ -393,7 +474,8 @@ def order_accepted(call: CallbackQuery) -> None:
         order = {
             'bouquet': data['current_bouquet'],
             'delivery_date': data['delivery_date'],
-            'delivery_time': data['delivery_time']
+            'delivery_time': data['delivery_time'],
+            'payment_method': data['payment_method']
         }
         bouquet = data['current_bouquet']
 
@@ -414,7 +496,7 @@ def order_accepted(call: CallbackQuery) -> None:
         client_id = get_client_from_db(client['username'])['id']
 
     courier = get_courier_from_db()
-    price_with_delivery = courier['orders_count'] + bouquet['price']
+    price_with_delivery = DELIVERY_PRICE + bouquet['price']
     new_order = create_order_in_db(
         client_id,
         bouquet['id'],
@@ -432,7 +514,8 @@ def order_accepted(call: CallbackQuery) -> None:
         bouquet["title"],
         price_with_delivery,
         client["address"],
-        delivery_datetime
+        delivery_datetime,
+        order['payment_method']
     )
     bot.send_message(
         courier_tg_id,
@@ -443,7 +526,7 @@ def order_accepted(call: CallbackQuery) -> None:
     )
 
     bot.send_message(
-        chat_id,
+        message.chat.id,
         ''.join([
             msg.YOUR_ORDER_ACCEPTED,
             order_info,

@@ -11,3 +11,6 @@ ORDER_CONSULTATION = 'Заказать консультацию'
 ORDER_BOUQUET = 'Заказать этот букет'
 SHOW_ANOTHER_BOUQUET = 'Посмотреть следующий букет'
 SHOW_ALL_BOUQUETS = 'Посмотреть коллекцию букетов'
+
+PAYMENT_ONLINE = 'Онлайн через бота'
+PAYMENT_CASH = 'Наличными курьеру'
