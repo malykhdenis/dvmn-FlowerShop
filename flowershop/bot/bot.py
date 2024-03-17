@@ -433,15 +433,20 @@ def get_payment_from_user(call: CallbackQuery):
                      amount=DELIVERY_PRICE*kopecks_in_rouble)
     ]
 
-    invoice_payload = str(datetime.timestamp(datetime.now()))
     bot.send_invoice(
         chat_id,
         bouquet_title,
         bouquet['description'],
-        invoice_payload,
+        'invoice_payload_test',
         env.str('PAYMENT_TG_TOKEN'),
         'rub',
         price,
+    )
+
+    bot.send_message(
+        chat_id,
+        msg.PAYMENT_TEST,
+        parse_mode='markdown'
     )
 
     bot.set_state(message.from_user.id, BotStates.get_payment)
@@ -565,7 +570,6 @@ def consultation_ordered(message: Message) -> None:
     master_id = master['id']
     master_tg_id = master['telegram_id']
 
-    # TODO: Get reason by it's ID
     create_consultation_in_db(
         client_id,
         master_id,
