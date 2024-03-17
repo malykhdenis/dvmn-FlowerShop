@@ -54,7 +54,7 @@ def pd_approved(call: CallbackQuery) -> None:
     message = call.message
     chat_id = message.chat.id
 
-    # bot.send_document(chat_id, open('agreement.pdf', 'rb'))
+    bot.send_document(chat_id, open('agreement.pdf', 'rb'))
     bot.edit_message_reply_markup(chat_id, message.message_id)
 
     get_reason(message)
