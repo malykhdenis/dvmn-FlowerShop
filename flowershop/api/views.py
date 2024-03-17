@@ -8,18 +8,18 @@ from .serializers import (BouquetSerializer, ClientSerializer,
                           MasterSerializer, OrderSerializer, ReasonSerializer)
 
 
-class CreateRetrieveUpdateViewSet(
+class CreateListRetrieveUpdateViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Mixins for Client."""
+    """Mixins."""
     pass
 
 
-class ClientViewSet(CreateRetrieveUpdateViewSet):
+class ClientViewSet(CreateListRetrieveUpdateViewSet):
     """ViewSet for Client model."""
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
@@ -27,7 +27,7 @@ class ClientViewSet(CreateRetrieveUpdateViewSet):
     search_fields = ('=username',)
 
 
-class ReasonList(generics.ListCreateAPIView):
+class ReasonViewSet(CreateListRetrieveUpdateViewSet):
     """ViewSet for Reason model."""
     queryset = Reason.objects.all()
     serializer_class = ReasonSerializer
@@ -68,13 +68,13 @@ class CourierDetail(generics.RetrieveUpdateAPIView):
     serializer_class = CourierSerializer
 
 
-class OrderViewSet(CreateRetrieveUpdateViewSet):
+class OrderViewSet(CreateListRetrieveUpdateViewSet):
     """ViewSet for Client model."""
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
 
 
-class ConsultationViewSet(CreateRetrieveUpdateViewSet):
+class ConsultationViewSet(CreateListRetrieveUpdateViewSet):
     """ViewSet for Consultation model."""
     queryset = Consultation.objects.all()
     serializer_class = ConsultationSerializer
