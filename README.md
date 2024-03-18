@@ -39,7 +39,7 @@ PAYMENT_TG_TOKEN='PAYMENT_TG_TOKEN'  # платёжный токен телег�
     ```python
     python3 flowershop/manage.py createsuperuser
     ```
-3. Создайте примените миграции
+3. Создайте и примените миграции
     ```python
     python3 flowershop/manage.py makemigrations
     ```
